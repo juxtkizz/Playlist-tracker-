@@ -1,0 +1,341 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spotify Weekly Tracker</title>
+<style>
+:root{--bg:#101010;--panel:#1c1c1c;--green:#1ed760;--muted:#aaa;--line:#303030}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:white;font-family:Arial,sans-serif}
+header{padding:25px 6%;background:#080808;border-bottom:1px solid var(--line)}
+header h1{margin:0;color:var(--green);font-size:25px}
+header p{color:var(--muted);margin-bottom:0}
+main{max-width:1100px;margin:auto;padding:25px 5%}
+h2{font-size:20px}
+.panel{background:var(--panel);padding:20px;border-radius:13px;margin:18px 0}
+input{width:100%;padding:13px;margin:7px 0 14px;border-radius:7px;border:1px solid #444;background:#111;color:white}
+button{padding:12px 17px;border:0;border-radius:25px;background:var(--green);color:#071b0d;font-weight:bold;cursor:pointer;margin:5px 5px 5px 0}
+button.secondary{background:#333;color:white}
+button:disabled{opacity:.5}
+small,.muted{color:var(--muted)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
+.stat{background:#252525;padding:17px;border-radius:10px}
+.stat strong{display:block;font-size:25px;margin-top:8px}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:20px 0}
+.tabs button{background:#292929;color:white}
+.tabs button.active{background:var(--green);color:#071b0d}
+table{width:100%;border-collapse:collapse;margin-top:15px;font-size:14px}
+th,td{text-align:left;padding:12px 8px;border-bottom:1px solid var(--line)}
+th{color:var(--muted)}
+.up{color:var(--green)}.down{color:#ff7070}
+.song{display:flex;align-items:center;gap:10px}
+.song img{width:42px;height:42px;border-radius:5px;object-fit:cover}
+a{color:var(--green)}
+#status{color:var(--green);margin-top:12px}
+@media(max-width:600px){main{padding:18px 4%}table{font-size:12px}th,td{padding:9px 5px}}
+</style>
+</head>
+<body>
+<header>
+<h1>♫ WEEKLY TRACKER</h1>
+<p>Track your Nigeria and Global Spotify rankings.</p>
+</header>
+
+<main>
+<section class="panel">
+<h2>Connect Spotify</h2>
+<p class="muted">Connect your Spotify account to load your playlists.</p>
+<label>Spotify Client ID</label>
+<input id="clientId" value="0da3bec948a44f8dbcb429f5f20833">
+<button onclick="connectSpotify()">Connect Spotify</button>
+<button class="secondary" onclick="logout()">Disconnect</button>
+<p id="status">Not connected yet.</p>
+</section>
+
+<section class="panel">
+<h2>Your playlists</h2>
+<p class="muted">Paste the Spotify playlist links below.</p>
+<label>Nigeria playlist URL</label>
+<input id="nigeriaUrl" placeholder="https://open.spotify.com/playlist/...">
+<label>Global playlist URL</label>
+<input id="globalUrl" placeholder="https://open.spotify.com/playlist/...">
+<button onclick="savePlaylists()">Save playlists</button>
+<button onclick="loadBoth()">Load playlists</button>
+</section>
+
+<section class="stats">
+<div class="stat"><small>PLAYLISTS</small><strong id="statPlaylists">0</strong></div>
+<div class="stat"><small>TOTAL TRACKS</small><strong id="statTracks">0</strong></div>
+<div class="stat"><small>WEEKLY SNAPSHOTS</small><strong id="statSnapshots">0</strong></div>
+</section>
+
+<div class="tabs">
+<button id="tabNigeria" class="active" onclick="showChart('nigeria')">Nigeria</button>
+<button id="tabGlobal" onclick="showChart('global')">Global</button>
+</div>
+
+<section class="panel">
+<h2 id="chartTitle">Nigeria Weekly Top X</h2>
+<p class="muted" id="chartSubtitle">Your current playlist ranking.</p>
+<button onclick="loadCurrent()">Refresh ranking</button>
+<button onclick="saveSnapshot()">Save weekly snapshot</button>
+<div id="chartArea" class="muted">Connect Spotify and load your playlists to see your chart.</div>
+</section>
+
+<section class="panel">
+<h2>Weekly movements</h2>
+<div id="movementArea" class="muted">Save a snapshot to start tracking weekly movements.</div>
+</section>
+
+<section class="panel">
+<h2>Snapshot history</h2>
+<div id="historyArea" class="muted">Your saved weekly rankings will appear here.</div>
+</section>
+
+<p class="muted">Spotify content and album artwork belong to Spotify and their respective owners. This is an independent tracking project.</p>
+</main>
+
+<script>
+const API = "https://api.spotify.com/v1";
+let token = localStorage.getItem("spotify_token") || "";
+let charts = {nigeria:[],global:[]};
+let activeChart = "nigeria";
+
+function setStatus(message){
+ document.getElementById("status").textContent=message;
+}
+
+function getRedirectUri(){
+ return window.location.origin + window.location.pathname;
+}
+
+function randomString(length){
+ const chars="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+ const values=crypto.getRandomValues(new Uint8Array(length));
+ return Array.from(values,x=>chars[x%chars.length]).join("");
+}
+
+async function connectSpotify(){
+ const clientId=document.getElementById("clientId").value.trim();
+ if(!clientId){alert("Enter your Spotify Client ID.");return;}
+ const verifier=randomString(64);
+ localStorage.setItem("spotify_verifier",verifier);
+ const digest=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(verifier));
+ const challenge=btoa(String.fromCharCode(...new Uint8Array(digest)))
+ .replace(/=/g,"").replace(/\+/g,"-").replace(/\//g,"_");
+ const state=randomString(16);
+ localStorage.setItem("spotify_state",state);
+ localStorage.setItem("spotify_client_id",clientId);
+ const params=new URLSearchParams({
+  response_type:"code",
+  client_id:clientId,
+  scope:"playlist-read-private",
+  redirect_uri:getRedirectUri(),
+  code_challenge_method:"S256",
+  code_challenge:challenge,
+  state:state
+ });
+ window.location.href="https://accounts.spotify.com/authorize?"+params.toString();
+}
+
+async function handleCallback(){
+ const params=new URLSearchParams(window.location.search);
+ const code=params.get("code");
+ if(!code)return;
+ const state=params.get("state");
+ if(state!==localStorage.getItem("spotify_state")){
+  setStatus("Security check failed. Please connect again.");return;
+ }
+ const verifier=localStorage.getItem("spotify_verifier");
+ const clientId=localStorage.getItem("spotify_client_id");
+ try{
+  const response=await fetch("https://accounts.spotify.com/api/token",{
+   method:"POST",
+   headers:{"Content-Type":"application/x-www-form-urlencoded"},
+   body:new URLSearchParams({
+    client_id:clientId,
+    grant_type:"authorization_code",
+    code:code,
+    redirect_uri:getRedirectUri(),
+    code_verifier:verifier
+   })
+  });
+  const data=await response.json();
+  if(!response.ok)throw new Error(data.error_description||"Token request failed");
+  token=data.access_token;
+  localStorage.setItem("spotify_token",token);
+  window.history.replaceState({},document.title,window.location.pathname);
+  setStatus("Spotify connected successfully!");
+ }catch(error){setStatus("Connection error: "+error.message);}
+}
+
+async function apiGet(path){
+ const response=await fetch(API+path,{
+  headers:{Authorization:"Bearer "+token}
+ });
+ const data=await response.json();
+ if(!response.ok)throw new Error(data.error?.message||"Spotify request failed");
+ return data;
+}
+
+function playlistId(value){
+ const match=value.match(/playlist\/([a-zA-Z0-9]+)/);
+ return match?match[1]:value.trim();
+}
+
+function savePlaylists(){
+ localStorage.setItem("nigeria_url",document.getElementById("nigeriaUrl").value.trim());
+ localStorage.setItem("global_url",document.getElementById("globalUrl").value.trim());
+ alert("Playlist links saved.");
+}
+
+function restoreSettings(){
+ document.getElementById("nigeriaUrl").value=localStorage.getItem("nigeria_url")||"";
+ document.getElementById("globalUrl").value=localStorage.getItem("global_url")||"";
+ document.getElementById("clientId").value=localStorage.getItem("spotify_client_id")||"0da3bec948a44f8dbcb429f5f20833";
+}
+
+async function getPlaylist(url){
+ const id=playlistId(url);
+ if(!id)throw new Error("Add a playlist URL first.");
+ const meta=await apiGet("/playlists/"+id);
+ let items=[],offset=0;
+ while(offset<meta.tracks?.total || offset===0){
+  const page=await apiGet("/playlists/"+id+"/items?limit=50&offset="+offset);
+  items=items.concat(page.items||[]);
+  if(!page.next)break;
+  offset+=50;
+ }
+ return {
+  name:meta.name,
+  url:meta.external_urls?.spotify||url,
+  tracks:items.map(entry=>{
+   const t=entry.item||entry.track;
+   if(!t||t.type!=="track")return null;
+   return {
+    id:t.id,
+    name:t.name,
+    artists:(t.artists||[]).map(a=>a.name).join(", "),
+    image:t.album?.images?.[0]?.url||"",
+    link:t.external_urls?.spotify||"#"
+   };
+  }).filter(Boolean)
+ };
+}
+
+async function loadBoth(){
+ if(!token){alert("Connect Spotify first.");return;}
+ savePlaylists();
+ try{
+  setStatus("Loading playlists...");
+  const n=document.getElementById("nigeriaUrl").value.trim();
+  const g=document.getElementById("globalUrl").value.trim();
+  if(n)charts.nigeria= (await getPlaylist(n)).tracks;
+  if(g)charts.global= (await getPlaylist(g)).tracks;
+  updateStats();
+  renderChart();
+  setStatus("Playlists loaded successfully.");
+ }catch(error){setStatus("Could not load: "+error.message);}
+}
+
+async function loadCurrent(){
+ if(!token){alert("Connect Spotify first.");return;}
+ const url=localStorage.getItem(activeChart+"_url");
+ if(!url){alert("Add and save this playlist's URL first.");return;}
+ try{
+  setStatus("Refreshing chart...");
+  charts[activeChart]=(await getPlaylist(url)).tracks;
+  updateStats();renderChart();
+  setStatus("Ranking refreshed.");
+ }catch(error){setStatus("Could not refresh: "+error.message);}
+}
+
+function showChart(which){
+ activeChart=which;
+ document.getElementById("tabNigeria").classList.toggle("active",which==="nigeria");
+ document.getElementById("tabGlobal").classList.toggle("active",which==="global");
+ document.getElementById("chartTitle").textContent=which==="nigeria"?"Nigeria Weekly Top X":"Global Weekly Top X";
+ renderChart();
+}
+
+function renderChart(){
+ const tracks=charts[activeChart];
+ const area=document.getElementById("chartArea");
+ if(!tracks.length){area.textContent="No tracks loaded yet.";return;}
+ let html="<table><thead><tr><th>#</th><th>SONG</th><th>ARTIST</th></tr></thead><tbody>";
+ tracks.forEach((t,i)=>{
+  html+=`<tr><td>${i+1}</td><td><div class="song">${t.image?`<img src="${t.image}" alt="">`:""}<a href="${t.link}" target="_blank">${escapeHtml(t.name)}</a></div></td><td>${escapeHtml(t.artists)}</td></tr>`;
+ });
+ area.innerHTML=html+"</tbody></table>";
+}
+
+function escapeHtml(s){
+ return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+function getSnapshots(){
+ return JSON.parse(localStorage.getItem("weekly_snapshots")||"[]");
+}
+
+function saveSnapshot(){
+ const tracks=charts[activeChart];
+ if(!tracks.length){alert("Load this playlist first.");return;}
+ const all=getSnapshots();
+ const today=new Date().toISOString().slice(0,10);
+ all.push({
+  chart:activeChart,
+  date:today,
+  tracks:tracks.map(t=>({id:t.id,name:t.name,artists:t.artists}))
+ });
+ localStorage.setItem("weekly_snapshots",JSON.stringify(all));
+ updateStats();
+ renderMovements();
+ renderHistory();
+ alert("Weekly snapshot saved!");
+}
+
+function renderMovements(){
+ const all=getSnapshots().filter(s=>s.chart===activeChart);
+ const area=document.getElementById("movementArea");
+ if(all.length<2){area.textContent="Save another weekly snapshot to compare ranking movements.";return;}
+ const previous=all[all.length-2].tracks;
+ const current=all[all.length-1].tracks;
+ const oldPositions=new Map(previous.map((t,i)=>[t.id,i+1]));
+ let html="<table><tr><th>SONG</th><th>POSITION</th><th>MOVEMENT</th></tr>";
+ current.forEach((t,i)=>{
+  const old=oldPositions.get(t.id);
+  let movement=old===undefined?"NEW":old-(i+1);
+  let label=old===undefined?"NEW":movement>0?"↑ "+movement:movement<0?"↓ "+Math.abs(movement):"—";
+  let cls=movement>0?"up":movement<0?"down":"";
+  html+=`<tr><td>${escapeHtml(t.name)}</td><td>#${i+1}</td><td class="${cls}">${label}</td></tr>`;
+ });
+ area.innerHTML=html+"</table>";
+}
+
+function renderHistory(){
+ const all=getSnapshots().filter(s=>s.chart===activeChart).slice().reverse();
+ document.getElementById("historyArea").innerHTML=all.length?
+ all.map(s=>`<p>${s.date} — ${s.tracks.length} tracks</p>`).join(""):"No snapshots saved yet.";
+}
+
+function updateStats(){
+ document.getElementById("statPlaylists").textContent=(charts.nigeria.length?1:0)+(charts.global.length?1:0);
+ document.getElementById("statTracks").textContent=charts.nigeria.length+charts.global.length;
+ document.getElementById("statSnapshots").textContent=getSnapshots().length;
+}
+
+function logout(){
+ token="";
+ localStorage.removeItem("spotify_token");
+ setStatus("Disconnected from Spotify.");
+}
+
+restoreSettings();
+handleCallback();
+updateStats();
+</script>
+</body>
+  </html>
+  
