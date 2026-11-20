@@ -35,6 +35,36 @@ th{color:var(--muted)}
 a{color:var(--green)}
 #status{color:var(--green);margin-top:12px}
 @media(max-width:600px){main{padding:18px 4%}table{font-size:12px}th,td{padding:9px 5px}}
+.platforms{
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:12px;
+  margin-top:20px;
+}
+
+.platforms a{
+  display:block;
+  padding:17px 10px;
+  text-align:center;
+  text-decoration:none;
+  background:#292929;
+  color:white;
+  border:1px solid #444;
+  border-radius:12px;
+  font-weight:bold;
+  transition:0.2s;
+}
+
+.platforms a:hover{
+  background:#1ed760;
+  color:#071b0d;
+}
+
+@media(max-width:450px){
+  .platforms{
+    grid-template-columns:1fr 1fr;
+  }
+       }
 </style>
 </head>
 <body>
