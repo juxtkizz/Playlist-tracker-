@@ -87,6 +87,12 @@ a{color:var(--green)}
   </div>
  </section>
 <section class="panel">
+  <h2>Database Connection</h2>
+  <p class="muted">Check whether SABYDA is connected to its database.</p>
+  <button onclick="testSupabase()">Test Database Connection</button>
+  <p id="dbStatus">Not tested yet.</p>
+</section>
+  <section class="panel">
 <h2>Connect Spotify</h2>
 <p class="muted">Connect your Spotify account to load your playlists.</p>
 <label>Spotify Client ID</label>
@@ -153,7 +159,24 @@ let token = localStorage.getItem("spotify_token") || "";
 let charts = {nigeria:[],global:[]};
 let activeChart = "nigeria";
 
-function setStatus(message){
+async function testSupabase(){
+  const status = document.getElementById("dbStatus");
+  status.textContent = "Testing connection...";
+
+  try {
+    const { data, error } = await supabaseClient
+      .from("polls")
+      .select("id")
+      .limit(1);
+
+    if (error) throw error;
+
+    status.textContent = "Connected successfully! SABYDA database is working.";
+  } catch (error) {
+    status.textContent = "Connection failed: " + error.message;
+  }
+}
+    function setStatus(message){
  document.getElementById("status").textContent=message;
 }
 
