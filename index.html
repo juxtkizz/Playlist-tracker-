@@ -138,9 +138,17 @@ a{color:var(--green)}
 
 <p class="muted">Spotify content and album artwork belong to Spotify and their respective owners. This is an independent tracking project.</p>
 </main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-<script>
+  <script>
 const API = "https://api.spotify.com/v1";
+    const SUPABASE_URL = "https://otmgseddljgeuqetufsm.supabase.co/rest/v1/";
+const SUPABASE_KEY = "sb_publishable_u18mA3SdsqCNZGW2bavZWA_GrRRs3YG";
+
+const supabaseClient = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_KEY
+);
 let token = localStorage.getItem("spotify_token") || "";
 let charts = {nigeria:[],global:[]};
 let activeChart = "nigeria";
