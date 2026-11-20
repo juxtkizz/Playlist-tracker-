@@ -93,7 +93,14 @@ a{color:var(--green)}
   <p id="dbStatus">Not tested yet.</p>
 </section>
   <section class="panel">
-<h2>Connect Spotify</h2>
+<section class="panel" id="publicPolls">
+  <h2>🔥 SABYDA Polls</h2>
+  <p class="muted">Have your say in Nigerian music!</p>
+  <div id="pollList">
+    Loading polls...
+  </div>
+</section>
+    <h2>Connect Spotify</h2>
 <p class="muted">Connect your Spotify account to load your playlists.</p>
 <label>Spotify Client ID</label>
 <input id="clientId" value="0da3bec948a44f8dbcb429f5f20833">
@@ -159,7 +166,40 @@ let token = localStorage.getItem("spotify_token") || "";
 let charts = {nigeria:[],global:[]};
 let activeChart = "nigeria";
 
-async function testSupabase(){
+async function loadPublicPolls(){
+  const area = document.getElementById("pollList");
+  area.textContent = "Loading polls...";
+
+  try {
+    const { data, error } = await supabaseClient
+      .from("polls")
+      .select("id, title, description, status, starts_at, ends_at, results_at, poll_options(id, option_text)")
+      .in("status", ["open", "closed", "published"])
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+
+    if (!data.length) {
+      area.textContent = "No polls available yet. Check back soon!";
+      return;
+    }
+
+    area.innerHTML = data.map(poll => `
+      <div class="stat" style="margin:12px 0">
+        <h3>${escapeHtml(poll.title)}</h3>
+        <p>${escapeHtml(poll.description || "")}</p>
+        ${(poll.poll_options || []).map(option => `
+          <p>🎵 ${escapeHtml(option.option_text)}</p>
+        `).join("")}
+        <small>Status: ${escapeHtml(poll.status || "available")}</small>
+      </div>
+    `).join("");
+
+  } catch (error) {
+    area.textContent = "Could not load polls: " + error.message;
+  }
+}
+    async function testSupabase(){
   const status = document.getElementById("dbStatus");
   status.textContent = "Testing connection...";
 
@@ -408,7 +448,8 @@ function logout(){
 restoreSettings();
 handleCallback();
 updateStats();
-</script>
+loadPublicPolls();
+  </script>
 </body>
   </html>
   
